@@ -6,11 +6,13 @@ import DeleteConfirmation from './components/DeleteConfirmation.jsx';
 import logoImg from './assets/logo.png';
 import AvailablePlaces from './components/AvailablePlaces.jsx';
 import { updateUserPlaces } from './http.js';
+import Error from './components/Error.jsx';
 
 function App() {
   const selectedPlace = useRef();
 
   const [userPlaces, setUserPlaces] = useState([]);
+  const [errorUpdatingPlaces, setErrorUpdatingPlaces] = useState();
 
   const [modalIsOpen, setModalIsOpen] = useState(false);
 
@@ -24,6 +26,13 @@ function App() {
   }
 
   async function handleSelectPlace(selectedPlace) {
+    // alternative way is to put await in here and show the loading spinner
+    // during that await
+    /* await updateUserPlaces([selectedPlace, ...userPlaces]); */
+    // doing that above, now this state update below will wait until that request
+    // is done. so we should be showing some loading text or spinner, otherwise
+    // it might seem to the user as if the application is stuck
+
     setUserPlaces((prevPickedPlaces) => {
       if (!prevPickedPlaces) {
         prevPickedPlaces = [];
@@ -59,20 +68,63 @@ function App() {
     // fail to catch potential errors. so then there after, we can also define some
     // code that should be executed if this should fail.
     try {
+      // optimistic update
       await updateUserPlaces([selectedPlace, ...userPlaces]);
-    } catch (error) {}
+    } catch (error) {
+      // we aren't using the function form to update state here because we
+      // want that old user places state that will not include the newly
+      // selected place
+      // here if smth goes wrong, we roll back that change and we update that
+      // ui again
+      setUserPlaces(userPlaces);
+      setErrorUpdatingPlaces({
+        message: error.message || 'Failed to update places.',
+      });
+    }
   }
 
-  const handleRemovePlace = useCallback(async function handleRemovePlace() {
-    setUserPlaces((prevPickedPlaces) =>
-      prevPickedPlaces.filter((place) => place.id !== selectedPlace.current.id),
-    );
+  const handleRemovePlace = useCallback(
+    async function handleRemovePlace() {
+      setUserPlaces((prevPickedPlaces) =>
+        prevPickedPlaces.filter(
+          (place) => place.id !== selectedPlace.current.id,
+        ),
+      );
 
-    setModalIsOpen(false);
-  }, []);
+      try {
+        // performing optimistic updating means first updating the state and
+        // then sending an http requests
+        await updateUserPlaces(
+          userPlaces.filter((place) => place.id !== selectedPlace.current.id),
+        );
+
+        setModalIsOpen(false);
+      } catch (error) {
+        setUserPlaces(userPlaces);
+        setErrorUpdatingPlaces({
+          message: error.message || 'Failed to delete place.',
+        });
+      }
+    },
+    [userPlaces],
+  );
+
+  function handleError() {
+    setErrorUpdatingPlaces(null);
+  }
 
   return (
     <>
+      <Modal open={errorUpdatingPlaces} onClose={handleError}>
+        {errorUpdatingPlaces && (
+          <Error
+            title='An error occurred!'
+            message={errorUpdatingPlaces.message}
+            onConfirm={handleError}
+          />
+        )}
+      </Modal>
+
       <Modal open={modalIsOpen} onClose={handleStopRemovePlace}>
         <DeleteConfirmation
           onCancel={handleStopRemovePlace}
