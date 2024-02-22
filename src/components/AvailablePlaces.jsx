@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import Places from './Places.jsx';
 import Error from './Error.jsx';
+import { sortPlacesByDistance } from '../loc.js';
 
 export default function AvailablePlaces({ onSelectPlace }) {
   // when fetching data, its super common to have these three pieces of state
@@ -24,8 +25,33 @@ export default function AvailablePlaces({ onSelectPlace }) {
           throw new Error('Failed to fetch places');
         }
 
-        // if we make it to this end, we know that resData exists
-        setAvailablePlaces(resData.places);
+        // Fetch user location in the browser.
+        // Position is not available instantly, it takes some time.
+        // Can't use asyn/await in getCurrentPosition because getCurrentPosition
+        // doesn't yield a promise.
+        // So therefore, getCurrentPisition takes a callback function which will be
+        // executed eventually
+        // by the browser in the future once the position has been fetched.
+        // So we're using callback pattern in getCurrentPosition.
+        // This function which will be executed by the browser once the data is there
+        // will then receives a position object that contains the users coordinates.
+        //
+        navigator.geolocation.getCurrentPosition((position) => {
+          // if we make it to this end, we know that resData exists
+          // we can sort the location using our utility func
+          const sortedPlaces = sortPlacesByDistance(
+            resData.places,
+            position.coords.latitude,
+            position.coords.longitude,
+          );
+
+          setAvailablePlaces(sortedPlaces);
+
+          // this should stay outside of the try catch block typically because we
+          // wanna end this loading state no matter if we got an error or not
+          // put setIsFetching places here if we're done fetching and sorting our palces
+          setIsFetching(false);
+        });
       } catch (error) {
         // catch block - define code that should be executed if an error was encountered
         // Handling the error in a react application typically means we wanna
@@ -34,11 +60,10 @@ export default function AvailablePlaces({ onSelectPlace }) {
           message:
             error.message || 'Could not fetch places, please try again later.',
         });
-      }
 
-      // this should stay outside of the try catch block typically because we
-      // wanna end this loading state no matter if we got an error or not
-      setIsFetching(false);
+        // also put setIsFetching here if we have an error
+        setIsFetching(false);
+      }
     }
 
     fetchPlaces();
