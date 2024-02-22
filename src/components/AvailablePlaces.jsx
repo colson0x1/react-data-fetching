@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Places from './Places.jsx';
 import Error from './Error.jsx';
 import { sortPlacesByDistance } from '../loc.js';
+import { fetchAvailablePlaces } from '../http.js';
 
 export default function AvailablePlaces({ onSelectPlace }) {
   // when fetching data, its super common to have these three pieces of state
@@ -18,12 +19,13 @@ export default function AvailablePlaces({ onSelectPlace }) {
       // using try catch allows us to stop the application from crashing
       // try block - add the code that might fail
       try {
-        const response = await fetch('http://localhost:3000/places');
-        const resData = await response.json();
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch places');
-        }
+        // we use the utility fetch func here because fetch funtion may
+        // throw an error, either because we throw it or because fetch function
+        // throws one
+        // so we execute here and still await it because fetchAvailablePlaces
+        // will return a promise
+        // every function we decorate with async yields a promise
+        const places = await fetchAvailablePlaces();
 
         // Fetch user location in the browser.
         // Position is not available instantly, it takes some time.
@@ -40,7 +42,7 @@ export default function AvailablePlaces({ onSelectPlace }) {
           // if we make it to this end, we know that resData exists
           // we can sort the location using our utility func
           const sortedPlaces = sortPlacesByDistance(
-            resData.places,
+            places,
             position.coords.latitude,
             position.coords.longitude,
           );
